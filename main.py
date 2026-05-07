@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 import os
+from datetime import datetime
 
 TOKEN = os.getenv("TOKEN")
 
@@ -31,7 +32,7 @@ class EventView(discord.ui.View):
             inline=False
         )
 
-        accepted_text = "\n".join(self.accepted) if self.accepted else "Nobody yet"
+        accepted_text = "\n".join(self.accepted) if self.accepted else "-"
 
         embed.add_field(
             name=f"✅ Accepted ({len(self.accepted)})",
@@ -72,10 +73,14 @@ async def event(
     interaction: discord.Interaction,
     title: str,
     description: str,
-    time: str
+    date_time: str
 ):
 
-    view = EventView(title, description, time)
+    dt = datetime.strptime(date_time, "%Y-%m-%d %H:%M")
+
+    discord_timestamp = f"<t:{int(dt.timestamp())}:F>"
+    
+    view = EventView(title, description, discord_timestamp)
 
     await interaction.response.send_message(
         embed=view.create_embed(),
