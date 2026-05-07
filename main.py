@@ -68,13 +68,14 @@ class EventView(discord.ui.View):
         )
 
 @bot.tree.command(name="event", description="Create an event")
-async def event(interaction: discord.Interaction):
+async def event(
+    interaction: discord.Interaction,
+    title: str,
+    description: str,
+    time: str
+):
 
-    title = "🎮 Valorant Scrim"
-    description = "Custom Lobby 5v5"
-    time_text = "Friday 20:00"
-
-    view = EventView(title, description, time_text)
+    view = EventView(title, description, time)
 
     await interaction.response.send_message(
         embed=view.create_embed(),
