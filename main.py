@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 import os
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 TOKEN = os.getenv("TOKEN")
 
@@ -77,6 +78,8 @@ async def event(
 ):
 
     dt = datetime.strptime(date_time, "%Y-%m-%d %H:%M")
+    
+    dt = dt.replace(tzinfo=ZoneInfo("Asia/Bangkok"))
 
     discord_timestamp = f"<t:{int(dt.timestamp())}:F>"
     
