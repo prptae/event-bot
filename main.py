@@ -1,5 +1,7 @@
 import discord
 from discord.ext import commands
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
 import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -10,26 +12,25 @@ intents = discord.Intents.default()
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-class EventView(discord.ui.View):
-    def __init__(self, title, description, time_text):
-        super().__init__(timeout=None)
+scheduler = AsyncIOScheduler(timezone="Asia/Bangkok")
 
-        self.title = title
-        self.description = description
-        self.time_text = time_text
+class EventView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
 
         self.accepted = []
 
-    def create_embed(self):
+    def create_embed(self, title, description, time_text):
+
         embed = discord.Embed(
-            title=self.title,
-            description=self.description,
+            title=title,
+            description=description,
             color=discord.Color.blue()
         )
 
         embed.add_field(
             name="📅 Time",
-            value=self.time_text,
+            value=time_text,
             inline=False
         )
 
@@ -51,48 +52,96 @@ class EventView(discord.ui.View):
         if user not in self.accepted:
             self.accepted.append(user)
 
+        embed = interaction.message.embeds[0]
+
+        new_embed = discord.Embed.from_dict(embed.to_dict())
+
+        accepted_text = "\n".join(self.accepted)
+
+        new_embed.set_field_at(
+            1,
+            name=f"✅ Accepted ({len(self.accepted)})",
+            value=accepted_text,
+            inline=False
+        )
+
         await interaction.response.edit_message(
-            embed=self.create_embed(),
+            embed=new_embed,
             view=self
         )
 
-    @discord.ui.button(label="❌ Decline", style=discord.ButtonStyle.red)
-    async def decline(self, interaction: discord.Interaction, button: discord.ui.Button):
+async def send_event(channel, title, description, discord_timestamp):
 
-        user = interaction.user.display_name
+    view = EventView()
 
-        if user in self.accepted:
-            self.accepted.remove(user)
+    embed = view.create_embed(
+        title,
+        description,
+        discord_timestamp
+    )
 
-        await interaction.response.edit_message(
-            embed=self.create_embed(),
-            view=self
-        )
+    await channel.send(
+        embed=embed,
+        view=view
+    )
 
-@bot.tree.command(name="event", description="Create an event")
+@bot.tree.command(name="event", description="Schedule an event")
 async def event(
     interaction: discord.Interaction,
     title: str,
     description: str,
-    date_time: str
+    date_time: str,
+    repeat: bool = False
 ):
 
     dt = datetime.strptime(date_time, "%Y-%m-%d %H:%M")
-    
     dt = dt.replace(tzinfo=ZoneInfo("Asia/Bangkok"))
 
     discord_timestamp = f"<t:{int(dt.timestamp())}:F>"
-    
-    view = EventView(title, description, discord_timestamp)
+
+    channel = interaction.channel
+
+    if repeat:
+
+        scheduler.add_job(
+            send_event,
+            "interval",
+            weeks=1,
+            next_run_time=dt,
+            args=[
+                channel,
+                title,
+                description,
+                discord_timestamp
+            ]
+        )
+
+    else:
+
+        scheduler.add_job(
+            send_event,
+            "date",
+            run_date=dt,
+            args=[
+                channel,
+                title,
+                description,
+                discord_timestamp
+            ]
+        )
 
     await interaction.response.send_message(
-        embed=view.create_embed(),
-        view=view
+        f"✅ Event scheduled for {discord_timestamp}",
+        ephemeral=True
     )
 
 @bot.event
 async def on_ready():
+
+    scheduler.start()
+
     await bot.tree.sync()
+
     print(f"Logged in as {bot.user}")
 
 bot.run(TOKEN)
