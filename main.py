@@ -14,6 +14,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 scheduler = AsyncIOScheduler(timezone="Asia/Bangkok")
 
+
 class EventView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -70,6 +71,7 @@ class EventView(discord.ui.View):
             view=self
         )
 
+
 async def send_event(channel, title, description, discord_timestamp):
 
     view = EventView()
@@ -85,29 +87,84 @@ async def send_event(channel, title, description, discord_timestamp):
         view=view
     )
 
+
 @bot.tree.command(name="event", description="Schedule an event")
 async def event(
     interaction: discord.Interaction,
     title: str,
     description: str,
     date_time: str,
-    repeat: bool = False
+    repeat: str = "none"
 ):
 
     dt = datetime.strptime(date_time, "%Y-%m-%d %H:%M")
+
     dt = dt.replace(tzinfo=ZoneInfo("Asia/Bangkok"))
 
     discord_timestamp = f"<t:{int(dt.timestamp())}:F>"
 
     channel = interaction.channel
 
-    if repeat:
+    if repeat == "minute":
+
+        scheduler.add_job(
+            send_event,
+            "interval",
+            minutes=1,
+            next_run_time=dt,
+            id=title,
+            replace_existing=True,
+            args=[
+                channel,
+                title,
+                description,
+                discord_timestamp
+            ]
+        )
+
+    elif repeat == "daily":
+
+        scheduler.add_job(
+            send_event,
+            "interval",
+            days=1,
+            next_run_time=dt,
+            id=title,
+            replace_existing=True,
+            args=[
+                channel,
+                title,
+                description,
+                discord_timestamp
+            ]
+        )
+
+    elif repeat == "weekly":
 
         scheduler.add_job(
             send_event,
             "interval",
             weeks=1,
             next_run_time=dt,
+            id=title,
+            replace_existing=True,
+            args=[
+                channel,
+                title,
+                description,
+                discord_timestamp
+            ]
+        )
+
+    elif repeat == "monthly":
+
+        scheduler.add_job(
+            send_event,
+            "interval",
+            days=30,
+            next_run_time=dt,
+            id=title,
+            replace_existing=True,
             args=[
                 channel,
                 title,
@@ -122,6 +179,8 @@ async def event(
             send_event,
             "date",
             run_date=dt,
+            id=title,
+            replace_existing=True,
             args=[
                 channel,
                 title,
@@ -135,6 +194,30 @@ async def event(
         ephemeral=True
     )
 
+
+@bot.tree.command(name="cancel_event", description="Cancel an event")
+async def cancel_event(
+    interaction: discord.Interaction,
+    title: str
+):
+
+    try:
+
+        scheduler.remove_job(title)
+
+        await interaction.response.send_message(
+            f"🗑️ Cancelled event: {title}",
+            ephemeral=True
+        )
+
+    except:
+
+        await interaction.response.send_message(
+            "❌ Event not found",
+            ephemeral=True
+        )
+
+
 @bot.event
 async def on_ready():
 
@@ -143,5 +226,6 @@ async def on_ready():
     await bot.tree.sync()
 
     print(f"Logged in as {bot.user}")
+
 
 bot.run(TOKEN)
