@@ -16,10 +16,11 @@ scheduler = AsyncIOScheduler(timezone="Asia/Bangkok")
 
 
 class EventView(discord.ui.View):
-    def __init__(self):
+    def __init__(self, max_players):
         super().__init__(timeout=None)
 
         self.accepted = []
+        self.max_players = max_players
 
     def create_embed(self, title, description, time_text):
 
@@ -38,7 +39,7 @@ class EventView(discord.ui.View):
         accepted_text = "\n".join(self.accepted) if self.accepted else "-"
 
         embed.add_field(
-            name=f"✅ Accepted ({len(self.accepted)})",
+            name=f"✅ Accepted ({len(self.accepted)}/{self.max_players})",
             value=accepted_text,
             inline=False
         )
@@ -51,6 +52,15 @@ class EventView(discord.ui.View):
         user = interaction.user.display_name
 
         if user not in self.accepted:
+        
+            if len(self.accepted) >= self.max_players:
+        
+                await interaction.response.send_message(
+                    "❌ Event is full",
+                    ephemeral=True
+                )
+                return
+        
             self.accepted.append(user)
 
         embed = interaction.message.embeds[0]
@@ -61,7 +71,33 @@ class EventView(discord.ui.View):
 
         new_embed.set_field_at(
             1,
-            name=f"✅ Accepted ({len(self.accepted)})",
+            name=f"✅ Accepted ({len(self.accepted)}/{self.max_players})",
+            value=accepted_text,
+            inline=False
+        )
+
+        await interaction.response.edit_message(
+            embed=new_embed,
+            view=self
+        )
+
+    @discord.ui.button(label="❌ Decline", style=discord.ButtonStyle.red)
+    async def decline(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        user = interaction.user.display_name
+
+        if user in self.accepted:
+            self.accepted.remove(user)
+
+        embed = interaction.message.embeds[0]
+
+        new_embed = discord.Embed.from_dict(embed.to_dict())
+
+        accepted_text = "\n".join(self.accepted) if self.accepted else "Nobody yet"
+
+        new_embed.set_field_at(
+            1,
+            name=f"✅ Accepted ({len(self.accepted)}/{self.max_players})",
             value=accepted_text,
             inline=False
         )
@@ -72,9 +108,21 @@ class EventView(discord.ui.View):
         )
 
 
-async def send_event(channel, title, description, discord_timestamp):
 
-    view = EventView()
+
+
+
+
+
+
+
+
+
+
+
+async def send_event(channel, title, description, discord_timestamp, max_players):
+
+    view = EventView(max_players)
 
     embed = view.create_embed(
         title,
@@ -94,7 +142,8 @@ async def event(
     title: str,
     description: str,
     date_time: str,
-    repeat: str = "none"
+    repeat: str = "none",
+    max_players: int = 10
 ):
 
     dt = datetime.strptime(date_time, "%Y-%m-%d %H:%M")
@@ -118,7 +167,8 @@ async def event(
                 channel,
                 title,
                 description,
-                discord_timestamp
+                discord_timestamp,
+                max_players
             ]
         )
 
@@ -135,7 +185,8 @@ async def event(
                 channel,
                 title,
                 description,
-                discord_timestamp
+                discord_timestamp,
+                max_players
             ]
         )
 
@@ -152,7 +203,8 @@ async def event(
                 channel,
                 title,
                 description,
-                discord_timestamp
+                discord_timestamp,
+                max_players
             ]
         )
 
@@ -169,7 +221,8 @@ async def event(
                 channel,
                 title,
                 description,
-                discord_timestamp
+                discord_timestamp,
+                max_players
             ]
         )
 
@@ -185,7 +238,8 @@ async def event(
                 channel,
                 title,
                 description,
-                discord_timestamp
+                discord_timestamp,
+                max_players
             ]
         )
 
@@ -221,7 +275,8 @@ async def cancel_event(
 @bot.event
 async def on_ready():
 
-    scheduler.start()
+    if not scheduler.running:
+        scheduler.start()
 
     await bot.tree.sync()
 
