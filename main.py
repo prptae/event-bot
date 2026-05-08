@@ -46,7 +46,12 @@ class EventView(discord.ui.View):
 
         return embed
 
-    @discord.ui.button(label="✅ Accept", style=discord.ButtonStyle.green)
+    @discord.ui.button(
+        label="✅ Accept",
+        style=discord.ButtonStyle.green,
+        custom_id="accept_button"
+    )
+
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         user = interaction.user.display_name
@@ -81,7 +86,12 @@ class EventView(discord.ui.View):
             view=self
         )
 
-    @discord.ui.button(label="❌ Decline", style=discord.ButtonStyle.red)
+    @discord.ui.button(
+        label="❌ Decline",
+        style=discord.ButtonStyle.red,
+        custom_id="decline_button"
+    )
+
     async def decline(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         user = interaction.user.display_name
@@ -277,6 +287,8 @@ async def on_ready():
 
     if not scheduler.running:
         scheduler.start()
+
+    bot.add_view(EventView(999))
 
     await bot.tree.sync()
 
