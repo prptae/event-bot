@@ -52,7 +52,7 @@ class EventView(discord.ui.View):
 
         embed.add_field(
             name="📅 Time",
-            value=time_text,
+            value=f"{time_text}\n\u200b",
             inline=False
         )
 
