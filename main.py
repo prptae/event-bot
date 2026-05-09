@@ -1,3 +1,5 @@
+import sqlite3
+import uuid
 from myserver import server_on
 import discord
 from discord.ext import commands
@@ -14,6 +16,23 @@ intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 scheduler = AsyncIOScheduler(timezone="Asia/Bangkok")
+
+conn = sqlite3.connect("events.db")
+
+cursor = conn.cursor()
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS events (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    description TEXT,
+    date_time TEXT,
+    channel_id INTEGER,
+    repeat_type TEXT,
+    max_players INTEGER
+)
+""")
+
+conn.commit()
 
 
 class EventView(discord.ui.View):
@@ -132,7 +151,15 @@ class EventView(discord.ui.View):
 
 
 
-async def send_event(channel, title, description, discord_timestamp, max_players):
+async def send_event(
+    channel,
+    title,
+    description,
+    discord_timestamp,
+    max_players,
+    event_id,
+    repeat
+):
 
     view = EventView(max_players)
 
@@ -146,6 +173,16 @@ async def send_event(channel, title, description, discord_timestamp, max_players
         embed=embed,
         view=view
     )
+
+    if repeat == "none":
+
+        cursor.execute(
+            "DELETE FROM events WHERE id = ?",
+            (event_id,)
+        )
+
+        conn.commit()
+
 
 
 @bot.tree.command(name="event", description="Schedule an event")
@@ -164,6 +201,23 @@ async def event(
     dt = dt.replace(tzinfo=ZoneInfo("Asia/Bangkok"))
 
     discord_timestamp = f"<t:{int(dt.timestamp())}:F>"
+    event_id = str(uuid.uuid4())
+
+    cursor.execute("""
+    INSERT OR REPLACE INTO events
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (
+        event_id,
+        title,
+        description,
+        date_time,
+        channel.id,
+        repeat,
+        max_players
+    ))
+
+    conn.commit()
+
 
     if repeat == "minute":
 
@@ -172,15 +226,17 @@ async def event(
             "interval",
             minutes=1,
             next_run_time=dt,
-            id=title,
+            id=event_id,
             replace_existing=True,
             args=[
                 channel,
                 title,
                 description,
                 discord_timestamp,
-                max_players
-            ]
+                max_players,
+                event_id,
+                repeat
+            ]       
         )
 
     elif repeat == "daily":
@@ -190,15 +246,17 @@ async def event(
             "interval",
             days=1,
             next_run_time=dt,
-            id=title,
+            id=event_id,
             replace_existing=True,
             args=[
                 channel,
                 title,
                 description,
                 discord_timestamp,
-                max_players
-            ]
+                max_players,
+                event_id,
+                repeat
+            ]       
         )
 
     elif repeat == "weekly":
@@ -208,15 +266,17 @@ async def event(
             "interval",
             weeks=1,
             next_run_time=dt,
-            id=title,
+            id=event_id,
             replace_existing=True,
             args=[
                 channel,
                 title,
                 description,
                 discord_timestamp,
-                max_players
-            ]
+                max_players,
+                event_id,
+                repeat
+            ]       
         )
 
     elif repeat == "monthly":
@@ -226,15 +286,17 @@ async def event(
             "interval",
             days=30,
             next_run_time=dt,
-            id=title,
+            id=event_id,
             replace_existing=True,
             args=[
                 channel,
                 title,
                 description,
                 discord_timestamp,
-                max_players
-            ]
+                max_players,
+                event_id,
+                repeat
+            ]       
         )
 
     else:
@@ -243,14 +305,16 @@ async def event(
             send_event,
             "date",
             run_date=dt,
-            id=title,
+            id=event_id,
             replace_existing=True,
             args=[
                 channel,
                 title,
                 description,
                 discord_timestamp,
-                max_players
+                max_players,
+                event_id,
+                repeat
             ]
         )
 
@@ -259,19 +323,78 @@ async def event(
         ephemeral=True
     )
 
+@bot.tree.command(name="list_events", description="List all events")
+async def list_events(interaction: discord.Interaction):
+
+    cursor.execute("SELECT * FROM events")
+
+    events = cursor.fetchall()
+
+    if not events:
+
+        await interaction.response.send_message(
+            "❌ No events found",
+            ephemeral=True
+        )
+        return
+
+    embed = discord.Embed(
+        title="📅 Scheduled Events",
+        color=discord.Color.blue()
+    )
+
+    for event in events:
+
+        event_id = event[0]
+        title = event[1]
+        description = event[2]
+        date_time = event[3]
+        repeat = event[5]
+        max_players = event[6]
+
+        embed.add_field(
+            name=title,
+            value=(
+                f"🆔 `{event_id}`\n"
+                f"📅 {date_time}\n"
+                f"🔁 {repeat}\n"
+                f"👥 {max_players}"
+            ),
+            inline=False
+        )
+
+    await interaction.response.send_message(
+        embed=embed,
+        ephemeral=True
+    )
+
+
+
+
+
+
+
+
 
 @bot.tree.command(name="cancel_event", description="Cancel an event")
 async def cancel_event(
     interaction: discord.Interaction,
-    title: str
+    event_id: str
 ):
 
     try:
 
-        scheduler.remove_job(title)
+        scheduler.remove_job(event_id)
+
+        cursor.execute(
+            "DELETE FROM events WHERE id = ?",
+            (event_id,)
+        )
+
+        conn.commit()
 
         await interaction.response.send_message(
-            f"🗑️ Cancelled event: {title}",
+            f"🗑️ Cancelled event: {event_id}",
             ephemeral=True
         )
 
@@ -282,6 +405,114 @@ async def cancel_event(
             ephemeral=True
         )
 
+async def recover_events():
+
+    cursor.execute("SELECT * FROM events")
+
+    events = cursor.fetchall()
+
+    for event in events:
+
+        event_id = event[0]
+        title = event[1]
+        description = event[2]
+        date_time = event[3]
+        channel_id = event[4]
+        repeat = event[5]
+        max_players = event[6]
+
+        dt = datetime.strptime(date_time, "%Y-%m-%d %H:%M")
+
+        dt = dt.replace(tzinfo=ZoneInfo("Asia/Bangkok"))
+
+        discord_timestamp = f"<t:{int(dt.timestamp())}:F>"
+
+        channel = bot.get_channel(channel_id)
+
+        if channel is None:
+            continue
+
+        if repeat == "minute":
+
+            scheduler.add_job(
+                send_event,
+                "interval",
+                minutes=1,
+                next_run_time=dt,
+                id=event_id,
+                replace_existing=True,
+                args=[
+                    channel,
+                    title,
+                    description,
+                    discord_timestamp,
+                    max_players,
+                    event_id,
+                    repeat
+                ]
+            )
+
+        elif repeat == "daily":
+
+            scheduler.add_job(
+                send_event,
+                "interval",
+                days=1,
+                next_run_time=dt,
+                id=event_id,
+                replace_existing=True,
+                args=[
+                    channel,
+                    title,
+                    description,
+                    discord_timestamp,
+                    max_players,
+                    event_id,
+                    repeat
+                ]
+            )
+
+        elif repeat == "weekly":
+
+            scheduler.add_job(
+                send_event,
+                "interval",
+                weeks=1,
+                next_run_time=dt,
+                id=event_id,
+                replace_existing=True,
+                args=[
+                    channel,
+                    title,
+                    description,
+                    discord_timestamp,
+                    max_players,
+                    event_id,
+                    repeat
+                ]
+            )
+
+        elif repeat == "monthly":
+
+            scheduler.add_job(
+                send_event,
+                "interval",
+                days=30,
+                next_run_time=dt,
+                id=event_id,
+                replace_existing=True,
+                args=[
+                    channel,
+                    title,
+                    description,
+                    discord_timestamp,
+                    max_players,
+                    event_id,
+                    repeat
+                ]
+            )
+
+
 
 @bot.event
 async def on_ready():
@@ -289,7 +520,11 @@ async def on_ready():
     if not scheduler.running:
         scheduler.start()
 
+    scheduler.remove_all_jobs()
+
     bot.add_view(EventView(999))
+
+    await recover_events()
 
     await bot.tree.sync()
 
