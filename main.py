@@ -1,3 +1,4 @@
+from myserver import server_on
 import discord
 from discord.ext import commands
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -36,7 +37,9 @@ class EventView(discord.ui.View):
             inline=False
         )
 
-        accepted_text = "\n".join(self.accepted) if self.accepted else "-"
+        accepted_text = "\n".join(
+            f"> {user}" for user in self.accepted
+        ) if self.accepted else "-"
 
         embed.add_field(
             name=f"✅ Accepted ({len(self.accepted)}/{self.max_players})",
@@ -72,7 +75,9 @@ class EventView(discord.ui.View):
 
         new_embed = discord.Embed.from_dict(embed.to_dict())
 
-        accepted_text = "\n".join(self.accepted)
+        accepted_text = "\n".join(
+            f"> {user}" for user in self.accepted
+        )
 
         new_embed.set_field_at(
             1,
@@ -103,7 +108,9 @@ class EventView(discord.ui.View):
 
         new_embed = discord.Embed.from_dict(embed.to_dict())
 
-        accepted_text = "\n".join(self.accepted) if self.accepted else "Nobody yet"
+        accepted_text = "\n".join(
+            f"> {user}" for user in self.accepted
+        ) if self.accepted else "-"
 
         new_embed.set_field_at(
             1,
@@ -116,11 +123,6 @@ class EventView(discord.ui.View):
             embed=new_embed,
             view=self
         )
-
-
-
-
-
 
 
 
@@ -152,6 +154,7 @@ async def event(
     title: str,
     description: str,
     date_time: str,
+    channel: discord.TextChannel,
     repeat: str = "none",
     max_players: int = 10
 ):
@@ -161,8 +164,6 @@ async def event(
     dt = dt.replace(tzinfo=ZoneInfo("Asia/Bangkok"))
 
     discord_timestamp = f"<t:{int(dt.timestamp())}:F>"
-
-    channel = interaction.channel
 
     if repeat == "minute":
 
@@ -294,5 +295,7 @@ async def on_ready():
 
     print(f"Logged in as {bot.user}")
 
+
+server_on()
 
 bot.run(TOKEN)
