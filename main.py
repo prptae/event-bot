@@ -248,7 +248,7 @@ async def event(
     channel: discord.TextChannel,
     repeat: str = "none",
     max_players: int = 10,
-    signup_duration_hours: int = 0
+    signup_duration_hours: float = 0
 ):
 
     dt = datetime.strptime(date_time, "%Y-%m-%d %H:%M")
