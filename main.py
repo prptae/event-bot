@@ -1,9 +1,11 @@
 import sqlite3
+import asyncio
 import uuid
 from myserver import server_on
 import discord
 from discord.ext import commands
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from datetime import timedelta
 
 import os
 from datetime import datetime
@@ -29,7 +31,8 @@ CREATE TABLE IF NOT EXISTS events (
     channel_id INTEGER,
     repeat_type TEXT,
     max_players INTEGER,
-    creator TEXT
+    creator TEXT,
+    signup_duration_hours INTEGER
 )
 """)
 
@@ -160,7 +163,8 @@ async def send_event(
     max_players,
     event_id,
     repeat,
-    creator
+    creator,
+    signup_duration_hours
 ):
 
     view = EventView(max_players)
@@ -182,10 +186,22 @@ async def send_event(
     )
 
 
-    await channel.send(
+    message = await channel.send(
         embed=embed,
         view=view
     )
+
+    if signup_duration_hours > 0:
+
+        scheduler.add_job(
+            close_signup,
+            "date",
+            run_date=datetime.now(
+                ZoneInfo("Asia/Bangkok")
+            ) + timedelta(hours=signup_duration_hours),
+            args=[message]
+        )
+
 
     if repeat == "none":
 
@@ -198,6 +214,31 @@ async def send_event(
 
 
 
+async def close_signup(message):
+
+    disabled_view = discord.ui.View(timeout=None)
+
+    disabled_view.add_item(
+        discord.ui.Button(
+            label="✅ Accept Closed",
+            style=discord.ButtonStyle.gray,
+            disabled=True
+        )
+    )
+
+    disabled_view.add_item(
+        discord.ui.Button(
+            label="❌ Closed",
+            style=discord.ButtonStyle.gray,
+            disabled=True
+        )
+    )
+
+    await message.edit(view=disabled_view)
+
+
+
+
 @bot.tree.command(name="event", description="Schedule an event")
 async def event(
     interaction: discord.Interaction,
@@ -206,7 +247,8 @@ async def event(
     date_time: str,
     channel: discord.TextChannel,
     repeat: str = "none",
-    max_players: int = 10
+    max_players: int = 10,
+    signup_duration_hours: int = 0
 ):
 
     dt = datetime.strptime(date_time, "%Y-%m-%d %H:%M")
@@ -218,7 +260,7 @@ async def event(
 
     cursor.execute("""
     INSERT OR REPLACE INTO events
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         event_id,
         title,
@@ -227,7 +269,8 @@ async def event(
         channel.id,
         repeat,
         max_players,
-        interaction.user.display_name
+        interaction.user.display_name,
+        signup_duration_hours
     ))
 
     conn.commit()
@@ -250,7 +293,8 @@ async def event(
                 max_players,
                 event_id,
                 repeat,
-                interaction.user.display_name
+                interaction.user.display_name,
+                signup_duration_hours
             ]     
         )
 
@@ -271,7 +315,8 @@ async def event(
                 max_players,
                 event_id,
                 repeat,
-                interaction.user.display_name
+                interaction.user.display_name,
+                signup_duration_hours
             ]         
         )
 
@@ -292,7 +337,8 @@ async def event(
                 max_players,
                 event_id,
                 repeat,
-                interaction.user.display_name
+                interaction.user.display_name,
+                signup_duration_hours
             ]         
         )
 
@@ -313,7 +359,8 @@ async def event(
                 max_players,
                 event_id,
                 repeat,
-                interaction.user.display_name
+                interaction.user.display_name,
+                signup_duration_hours
             ]          
         )
 
@@ -333,7 +380,8 @@ async def event(
                 max_players,
                 event_id,
                 repeat,
-                interaction.user.display_name
+                interaction.user.display_name,
+                signup_duration_hours
             ]     
         )
 
@@ -371,6 +419,7 @@ async def list_events(interaction: discord.Interaction):
         repeat = event[5]
         max_players = event[6]
         creator = event[7]
+        signup_duration_hours = event[8]
 
         embed.add_field(
             name=title,
@@ -441,6 +490,7 @@ async def recover_events():
         repeat = event[5]
         max_players = event[6]
         creator = event[7]
+        signup_duration_hours = event[8]
 
         dt = datetime.strptime(date_time, "%Y-%m-%d %H:%M")
 
@@ -470,7 +520,8 @@ async def recover_events():
                     max_players,
                     event_id,
                     repeat,
-                    creator
+                    creator,
+                    signup_duration_hours
                 ]
             )
 
@@ -491,7 +542,8 @@ async def recover_events():
                     max_players,
                     event_id,
                     repeat,
-                    creator
+                    creator,
+                    signup_duration_hours
                 ]
             )
 
@@ -512,7 +564,8 @@ async def recover_events():
                     max_players,
                     event_id,
                     repeat,
-                    creator
+                    creator,
+                    signup_duration_hours
                 ]
             )
 
@@ -533,7 +586,8 @@ async def recover_events():
                     max_players,
                     event_id,
                     repeat,
-                    creator
+                    creator,
+                    signup_duration_hours
                 ]
             )
 
