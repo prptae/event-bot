@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS events (
     date_time TEXT,
     channel_id INTEGER,
     repeat_type TEXT,
-    max_players INTEGER
+    max_players INTEGER,
+    creator TEXT
 )
 """)
 
@@ -158,7 +159,8 @@ async def send_event(
     discord_timestamp,
     max_players,
     event_id,
-    repeat
+    repeat,
+    creator
 ):
 
     view = EventView(max_players)
@@ -168,6 +170,17 @@ async def send_event(
         description,
         discord_timestamp
     )
+
+    repeat_text = (
+        f"Repeats {repeat}"
+        if repeat != "none"
+        else "One-time event"
+    )
+
+    embed.set_footer(
+        text=f"Created by {creator} • {repeat_text}"
+    )
+
 
     await channel.send(
         embed=embed,
@@ -205,7 +218,7 @@ async def event(
 
     cursor.execute("""
     INSERT OR REPLACE INTO events
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         event_id,
         title,
@@ -213,7 +226,8 @@ async def event(
         date_time,
         channel.id,
         repeat,
-        max_players
+        max_players,
+        interaction.user.display_name
     ))
 
     conn.commit()
@@ -235,8 +249,9 @@ async def event(
                 discord_timestamp,
                 max_players,
                 event_id,
-                repeat
-            ]       
+                repeat,
+                interaction.user.display_name
+            ]     
         )
 
     elif repeat == "daily":
@@ -255,8 +270,9 @@ async def event(
                 discord_timestamp,
                 max_players,
                 event_id,
-                repeat
-            ]       
+                repeat,
+                interaction.user.display_name
+            ]         
         )
 
     elif repeat == "weekly":
@@ -275,8 +291,9 @@ async def event(
                 discord_timestamp,
                 max_players,
                 event_id,
-                repeat
-            ]       
+                repeat,
+                interaction.user.display_name
+            ]         
         )
 
     elif repeat == "monthly":
@@ -295,8 +312,9 @@ async def event(
                 discord_timestamp,
                 max_players,
                 event_id,
-                repeat
-            ]       
+                repeat,
+                interaction.user.display_name
+            ]          
         )
 
     else:
@@ -314,8 +332,9 @@ async def event(
                 discord_timestamp,
                 max_players,
                 event_id,
-                repeat
-            ]
+                repeat,
+                interaction.user.display_name
+            ]     
         )
 
     await interaction.response.send_message(
@@ -351,6 +370,7 @@ async def list_events(interaction: discord.Interaction):
         date_time = event[3]
         repeat = event[5]
         max_players = event[6]
+        creator = event[7]
 
         embed.add_field(
             name=title,
@@ -420,6 +440,7 @@ async def recover_events():
         channel_id = event[4]
         repeat = event[5]
         max_players = event[6]
+        creator = event[7]
 
         dt = datetime.strptime(date_time, "%Y-%m-%d %H:%M")
 
@@ -448,7 +469,8 @@ async def recover_events():
                     discord_timestamp,
                     max_players,
                     event_id,
-                    repeat
+                    repeat,
+                    creator
                 ]
             )
 
@@ -468,7 +490,8 @@ async def recover_events():
                     discord_timestamp,
                     max_players,
                     event_id,
-                    repeat
+                    repeat,
+                    creator
                 ]
             )
 
@@ -488,7 +511,8 @@ async def recover_events():
                     discord_timestamp,
                     max_players,
                     event_id,
-                    repeat
+                    repeat,
+                    creator
                 ]
             )
 
@@ -508,7 +532,8 @@ async def recover_events():
                     discord_timestamp,
                     max_players,
                     event_id,
-                    repeat
+                    repeat,
+                    creator
                 ]
             )
 
